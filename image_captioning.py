@@ -40,6 +40,7 @@ keras.backend.tensorflow_backend._get_available_gpus()
 # Specify data directory and the COCO training file to be used
 # Update the following directory with the new working directory found by the previous command
 data_dir = "/home/tcai/Documents/nlp/final_project"
+os.chdir(data_dir)
 data_type = "train2017"
 data_zipfile = '%s.zip' % data_type
 
@@ -136,11 +137,11 @@ for img_id in train_img_name_vector:
     img_captions = coco_caps.loadAnns(coco_caps.getAnnIds(img_id))
 
     for caption in [x['caption'] for x in img_captions]:
-        captions.append('start_sentence ' + caption + ' end_sentence')
+        captions.append('<start> ' + caption + ' <end>')
         images.append(img_path)
         images_features.append(img_feature)
 
-    captions, images, images_features = sklearn.utils.shuffle(captions, images, images_features, random_state = 0)
+captions, images, images_features = sklearn.utils.shuffle(captions, images, images_features, random_state = 0)
 
 # Create the validation image data set
 test_captions = []
@@ -153,26 +154,21 @@ for img_id in test_img_name_vector:
     img_captions = coco_caps.loadAnns(coco_caps.getAnnIds(img_id))
 
     for caption in [x['caption'] for x in img_captions]:
-        test_captions.append('start_sentence ' + caption + ' end_sentence')
+        test_captions.append('<start> ' + caption + ' <end>')
         test_images.append(img_path)
         test_images_features.append(img_feature)
 
-    test_captions, test_images, test_images_features = sklearn.utils.shuffle(
-        test_captions, test_images, test_images_features, random_state = 0)
+test_captions, test_images, test_images_features = sklearn.utils.shuffle(
+    test_captions, test_images, test_images_features, random_state = 0)
 
-print('Training: %s distinct images, %s captions,' %
-      (len(list(set(images))), len(captions)))
-print('Validation: %s distinct images, %s captions.' %
-      (len(list(set(test_images))), len(test_captions)))
+print('Training: %s distinct images, %s captions,' % (len(list(set(images))), len(captions)))
+print('Validation: %s distinct images, %s captions.' % (len(list(set(test_images))), len(test_captions)))
 
 """Word Embeddings"""
 
 # Find the maximum length of any caption in our dataset
-
-
 def calc_max_length(tensor):
     return max(len(t) for t in tensor)
-
 
 number_of_words = 6000
 
@@ -303,7 +299,7 @@ def data_generator(tokenizer, max_length, captions, images_features, batch_size)
 # Predict caption
 def generate_desc(model, tokenizer, photo, max_length):
     # seed the generation process
-    in_text = 'start_sentence'
+    in_text = '<start>'
     for i in range(max_length):
         # Use input and image to start predict the rest of the caption
         sequence = tokenizer.texts_to_sequences([in_text])[0]
@@ -320,23 +316,23 @@ def generate_desc(model, tokenizer, photo, max_length):
         if word is None:
             break
         in_text += ' ' + word
-        if word == 'end_sentence':
+        if word == '<end>':
             break
 
     # Remove beginning and ending signal words when output
-    in_text = re.sub(r'(start|end)_sentence', '', in_text).strip()
+    in_text = re.sub(r'\<(start|end)\>', '', in_text).strip()
     return in_text
 
 
 # Store default weights in the model directory
 model_directory = './model'
 
+# todo simplify
 if not os.path.exists(model_directory):
     os.makedirs(model_directory)
 
-model.save_weights(model_directory + '/model.h5')
-
 # Reset model with default weights before training
+model.save_weights(model_directory + '/model.h5')
 model.load_weights(model_directory + '/model.h5')
 
 # Specify final model parameters
@@ -389,13 +385,10 @@ plt.show()
 # todo BLEU calculation here might be problematic
 # todo Calculate overall BLEU score
 # Train images
-print(
-    "Sample prediction of the model with a batch size of %s and %s epochs.\n" %
-    (batch_size, epochs))
+print("Sample prediction of the model with a batch size of %s and %s epochs.\n" % (batch_size, epochs))
 
 # Load the latest model weight
-model.load_weights(model_directory + '/model_epoch%s_bs%s.h5' %
-                   (epochs, batch_size))
+model.load_weights(model_directory + '/model_epoch%s_bs%s.h5' % (epochs, batch_size))
 
 # Output prediction for the first five images in the validation data. 
 # Note that the data set is already shuffled.
@@ -405,7 +398,7 @@ for j in np.random.choice(range(len(test_captions)), 5):
     img_desc = generate_desc(model, tokenizer, test_images_features[j],
                              max_length)
     actual_caption = test_captions[j]
-    actual_caption = re.sub(r'(start|end)_sentence', '', actual_caption)
+    actual_caption = re.sub(r'\<(start|end)\>', '', actual_caption)
 
     print("Predicted Caption: %s \nActual Caption: %s" %
           (img_desc, actual_caption))
@@ -477,7 +470,7 @@ plt.show()
 
 # Obtain actual and predicted images and their captions
 actual_caption = captions[rand_train_image]
-actual_caption = re.sub(r'(start|end)_sentence', '', actual_caption).strip()
+actual_caption = re.sub(r'\<(start|end)\>', '', actual_caption).strip()
 print("The actual caption is:\n%s \n\nThe predicted captions are:" %
       (actual_caption))
 
@@ -488,7 +481,7 @@ for bs in [500, 1000, 2000, 3000]:
     img_desc = generate_desc(model, tokenizer,
                              images_features[rand_train_image], max_length)
 
-    actual_caption = re.sub(r'(start|end)_sentence', '', actual_caption)
+    actual_caption = re.sub(r'\<(start|end)\>', '', actual_caption)
     print("Batch size = %s: %s" % (bs, img_desc))
 
     result_bleu = nltk.translate.bleu_score.sentence_bleu(
@@ -508,7 +501,7 @@ plt.show()
 
 # Obtain actual and predicted images and their captions
 actual_caption = captions[rand_test_image]
-actual_caption = re.sub(r'(start|end)_sentence', '', actual_caption).strip()
+actual_caption = re.sub(r'\<(start|end)\>', '', actual_caption).strip()
 print("The actual caption is:\n%s \n\nThe predicted captions are:" %
       (actual_caption))
 
@@ -519,7 +512,7 @@ for bs in [500, 1000, 2000, 3000]:
     img_desc = generate_desc(model, tokenizer,
                              images_features[rand_test_image], max_length)
 
-    actual_caption = re.sub(r'(start|end)_sentence', '', actual_caption)
+    actual_caption = re.sub(r'\<(start|end)\>', '', actual_caption)
     print("Batch size = %s: %s" % (bs, img_desc))
 
     result_bleu = nltk.translate.bleu_score.sentence_bleu(
@@ -562,7 +555,7 @@ def show_img_example(img_idx):
 
     # Create actual and predicted caption
     actual_caption = captions[img_idx]
-    actual_caption = re.sub(r'(start|end)_sentence', '', actual_caption).strip()
+    actual_caption = re.sub(r'\<(start|end)\>', '', actual_caption).strip()
 
     model.load_weights(model_directory + '/model_epoch50_bs500.h5')
     img_desc = generate_desc(model, tokenizer, images_features[img_idx],
